@@ -1,21 +1,19 @@
-import React, { useState } from "react";
 import {
+  ArrowDownCircleIcon,
   ArrowLeftCircleIcon,
   ArrowRightCircleIcon,
   PauseCircleIcon,
   PlayCircleIcon,
 } from "@heroicons/react/24/outline";
 import { EmblaOptionsType } from "embla-carousel";
-import useEmblaCarousel from "embla-carousel-react";
 import ClassNames from "embla-carousel-class-names";
-import {
-  NextButton,
-  PrevButton,
-  usePrevNextButtons,
-} from "./EmblaCarouselArrowButtons";
+import useEmblaCarousel from "embla-carousel-react";
+import React, { useState } from "react";
+import { usePrevNextButtons } from "./EmblaCarouselArrowButtons";
 // import { DotButton, useDotButton } from "./EmblaCarouselDotButton";
-import "../../../../app/embla.css";
+import { DownloadByName } from "@/services/youtubeServices";
 import { SpotifyTrack } from "@/types/SpotifyTrack";
+import "../../../../app/embla.css";
 
 type PropType = {
   data: any;
@@ -27,6 +25,7 @@ const EmblaCarousel: React.FC<PropType> = (props) => {
   const [emblaRef, emblaApi] = useEmblaCarousel(options, [ClassNames()]);
   const [isGrabbing, setIsGrabbing] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const handleGrabbing = () => {
     setIsGrabbing(true);
@@ -36,9 +35,16 @@ const EmblaCarousel: React.FC<PropType> = (props) => {
     setIsGrabbing(false);
   };
 
-  const mediaControlClasses = () =>
-    "h-12 w-12 text-white cursor-pointer hover:text-primary rounded-full";
-  console.log(data);
+  const handleDownload = async (artistTitle: string, songTitle: string) => {
+    setIsDownloading(true);
+    const success = await DownloadByName(artistTitle, songTitle);
+    if (success) {
+      setIsDownloading(false);
+    }
+  };
+
+  const mediaControlClasses =
+    "h-12 w-12 text-white cursor-pointer hover:text-primary hover:bg-white rounded-full";
   // const { selectedIndex, scrollSnaps, onDotButtonClick } =
   //   useDotButton(emblaApi);
 
@@ -100,19 +106,30 @@ const EmblaCarousel: React.FC<PropType> = (props) => {
                   </div>
                   <div className="media_buttons flex md:gap-3">
                     <ArrowLeftCircleIcon
-                      className={mediaControlClasses()}
+                      className={mediaControlClasses}
                       onClick={onPrevButtonClick}
                     />
 
                     {isPlaying ? (
-                      <PauseCircleIcon className={mediaControlClasses()} />
+                      <PauseCircleIcon className={mediaControlClasses} />
                     ) : (
-                      <PlayCircleIcon className={mediaControlClasses()} />
+                      <PlayCircleIcon className={mediaControlClasses} />
                     )}
 
                     <ArrowRightCircleIcon
-                      className={mediaControlClasses()}
+                      className={mediaControlClasses}
                       onClick={onNextButtonClick}
+                    />
+                    <ArrowDownCircleIcon
+                      className={`${mediaControlClasses} ${
+                        isDownloading ? "animate-bounce" : ""
+                      }`}
+                      onClick={() =>
+                        handleDownload(
+                          track.track.artists[0].name,
+                          track.track.name
+                        )
+                      }
                     />
                   </div>
                 </div>

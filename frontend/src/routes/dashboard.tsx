@@ -1,14 +1,13 @@
-import { Link } from "react-router-dom";
 import { useSession } from "@clerk/clerk-react";
 import { useEffect, useState } from "react";
-import { SpotifyTrack } from "@/types/SpotifyTrack";
+import { Link } from "react-router-dom";
 import {
-  getSpotifyProfile,
   getSpotifyFavourites,
+  getSpotifyProfile,
 } from "../services/spotifyServices";
 
-import { SpotifyProfileData } from "@/types/SpotifyProfileData";
 import EmblaCarousel from "@/components/ui/embla/EmblaCarousel";
+import { SpotifyProfileData } from "@/types/SpotifyProfileData";
 import { EmblaOptionsType } from "embla-carousel";
 import "../../app/embla.css";
 
@@ -59,7 +58,6 @@ export default function DashboardPage() {
           const { body: favTracks } = await getSpotifyFavourites(accessToken);
           setSpotifyProfileData(profile);
           setSpotifyFavouriteTracks(favTracks);
-          console.log(favTracks);
         } catch (error) {
           console.error("Error fetching data:", error);
         } finally {

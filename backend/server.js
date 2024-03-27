@@ -10,7 +10,11 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(morgan('dev'));
 app.use(express.json());
-app.use(cors());
+app.use(
+    cors({
+        origin: 'http://localhost:5173',
+    })
+);
 
 // Routes
 app.use('/', indexRouter);
