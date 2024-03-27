@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import "../app/globals.css";
+import "../app/embla.css";
 
 import * as Sentry from "@sentry/react";
 

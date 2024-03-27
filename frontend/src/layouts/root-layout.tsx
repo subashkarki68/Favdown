@@ -20,7 +20,7 @@ export default function RootLayout() {
       <header className='header'>
         <div>
           <div>
-            <p>Clerk + React + React Router App</p>
+            <p>Favdown</p>
           </div>
           <SignedIn>
             <UserButton afterSignOutUrl='/sign-in' />

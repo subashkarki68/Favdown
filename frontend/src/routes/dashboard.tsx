@@ -6,16 +6,24 @@ import {
   getSpotifyProfile,
   getSpotifyFavourites,
 } from "../services/spotifyServices";
+
 import { SpotifyProfileData } from "@/types/SpotifyProfileData";
-import { stringify } from "querystring";
+import EmblaCarousel from "@/components/ui/embla/EmblaCarousel";
+import { EmblaOptionsType } from "embla-carousel";
+import "../../app/embla.css";
 
 export default function DashboardPage() {
   const { session, isSignedIn } = useSession();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [spotifyProfileData, setSpotifyProfileData] =
     useState<SpotifyProfileData>();
-  const [spotifyFavouriteTracks, setSpotifyFavouriteTracks] = useState();
+  const [spotifyFavouriteTracks, setSpotifyFavouriteTracks] = useState<any>();
   const [loading, setLoading] = useState<boolean>(false);
+
+  //EMBLA
+  const OPTIONS: EmblaOptionsType = { loop: true };
+  const SLIDE_COUNT = 10;
+  const SLIDES = Array.from(Array(SLIDE_COUNT).keys());
 
   useEffect(() => {
     if (isSignedIn) {
@@ -65,30 +73,31 @@ export default function DashboardPage() {
 
   return (
     <>
-      {spotifyProfileData ? (
-        <div>
-          <h1>{spotifyProfileData?.display_name}</h1>
-          <p>This is a protected page.</p>
-        </div>
-      ) : (
-        <p>Loading...</p>
-      )}
-      <ul>
+      <div>
         {spotifyFavouriteTracks ? (
-          spotifyFavouriteTracks?.items.map((item: SpotifyTrack) => (
-            <li>{item.track.name}</li>
-          ))
+          <EmblaCarousel
+            data={spotifyFavouriteTracks?.items}
+            options={OPTIONS}
+          />
         ) : (
           <p>Loading Tracks...</p>
         )}
-      </ul>
+        {spotifyProfileData ? (
+          <div>
+            <h1>{spotifyProfileData?.display_name}</h1>
+            <p>This is a protected page.</p>
+          </div>
+        ) : (
+          <p>Loading...</p>
+        )}
+      </div>
 
       <ul>
         <li>
-          <Link to='/dashboard/invoices'>Invoices</Link>
+          <Link to="/dashboard/invoices">Invoices</Link>
         </li>
         <li>
-          <Link to='/'>Return to index</Link>
+          <Link to="/">Return to index</Link>
         </li>
       </ul>
     </>

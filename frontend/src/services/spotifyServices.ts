@@ -1,4 +1,5 @@
 import axios from "axios";
+import useSWR, { SWRConfiguration } from "swr";
 
 const HOST_URL = import.meta.env.VITE_HOST;
 const fetcher = (url: string, accessToken: string) =>
