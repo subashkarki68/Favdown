@@ -64,7 +64,7 @@ exports.downloadAudio = async (req, res) => {
         console.log('Response Header set successfully');
 
         ytdl(currentVideoID, { format: highestAudioFormat })
-            .pipe(fs.createWriteStream('audio.webm'))
+            .pipe(fs.writeFile('audio.webm'))
             .on('finish', () => {
                 console.log('Audio download completed.');
                 const ffmpegProcess = spawn(ffmpeg, [
@@ -81,7 +81,7 @@ exports.downloadAudio = async (req, res) => {
                     // Normalize the audio using ffmpeg-normalize
                     // Stream the converted mp3 file to response
                     // fs.createReadStream(fileName).pipe(res);
-                    const fileStream = fs.createReadStream(fileName);
+                    const fileStream = fs.readFile(fileName);
                     fileStream.pipe(res);
                     fileStream.on('close', () => {
                         //Delete file after sending to the client
