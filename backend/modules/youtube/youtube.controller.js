@@ -2,9 +2,7 @@ const ytdl = require('ytdl-core');
 const usetube = require('usetube');
 const { spawn } = require('child_process');
 const ffmpeg = require('ffmpeg-static');
-
-const bucketName = process.env.CYCLIC_BUCKET_NAME; // Get bucket name from environment variable
-const fs = require('@cyclic.sh/s3fs')(bucketName);
+const fs = require('@cyclic.sh/s3fs')(process.env.CYCLIC_BUCKET_NAME);
 
 exports.downloadAudio = async (req, res) => {
     try {
@@ -63,58 +61,85 @@ exports.downloadAudio = async (req, res) => {
         // Pipe the audio stream to ffmpeg to convert it to mp3 and then to response
         console.log('Response Header set successfully');
 
-        ytdl(currentVideoID, { format: highestAudioFormat })
-            .pipe(fs.writeFile('audio.webm'))
-            .on('finish', () => {
-                console.log('Audio download completed.');
-                const ffmpegProcess = spawn(ffmpeg, [
-                    '-i',
-                    'audio.webm',
-                    '-codec:a',
-                    'libmp3lame',
-                    '-q:a',
-                    '0',
-                    fileName,
-                ]);
-                ffmpegProcess.on('close', () => {
-                    console.log('Audio conversion completed.');
-                    // Normalize the audio using ffmpeg-normalize
-                    // Stream the converted mp3 file to response
-                    // fs.createReadStream(fileName).pipe(res);
-                    const fileStream = fs.readFile(fileName);
-                    fileStream.pipe(res);
-                    fileStream.on('close', () => {
-                        //Delete file after sending to the client
-                        fs.unlink('audio.webm', (err) => {
-                            if (err) {
-                                console.error('Error Deleting audio.webm');
-                            } else {
-                                console.log('audio.webm deleted Successfully');
-                            }
+        const audioStream = ytdl(currentVideoID, {
+            format: highestAudioFormat,
+        });
+        const buffers = [];
+
+        audioStream.on('data', (chunk) => {
+            buffers.push(chunk);
+        });
+
+        audioStream.on('end', async () => {
+            console.log('Audio download completed.');
+
+            try {
+                // Combine all buffers into a single buffer
+                const audioBuffer = Buffer.concat(buffers);
+                // Write the buffer to S3
+                await fs.writeFile(fileName, audioBuffer, (err) => {
+                    if (err) {
+                        console.error('Error saving audio to S3:', err);
+                        res.status(500).json({
+                            success: false,
+                            msg: 'Error saving audio to S3',
                         });
-                        fs.unlink(fileName, (err) => {
-                            if (err) {
-                                console.error(
-                                    `Error deleting file: ${fileName} from server:`,
-                                    err
-                                );
-                            } else {
-                                console.log(
-                                    'File deleted successfully.',
-                                    fileName
-                                );
-                            }
+                    } else {
+                        console.log('Audio saved to S3 successfully.');
+
+                        // Start ffmpeg process to convert the audio to mp3
+                        const ffmpegProcess = spawn(ffmpeg, [
+                            '-i',
+                            `s3://${process.env.CYCLIC_BUCKET_NAME}/${fileName}`,
+                            '-codec:a',
+                            'libmp3lame',
+                            '-q:a',
+                            '0',
+                            '-f',
+                            'mp3',
+                            'pipe:1',
+                        ]);
+
+                        ffmpegProcess.stdout.pipe(res);
+
+                        ffmpegProcess.on('close', async () => {
+                            console.log('Audio conversion completed.');
+
+                            // Delete temporary audio file from S3
+                            // Delete temporary audio file from S3
+                            await fs.unlink(fileName, (err) => {
+                                if (err) {
+                                    console.error(
+                                        'Error deleting temporary audio file from S3:',
+                                        err
+                                    );
+                                } else {
+                                    console.log(
+                                        'Temporary audio file deleted from S3.'
+                                    );
+                                }
+                            });
+
+                            res.end();
                         });
-                    });
+                    }
                 });
-            })
-            .on('error', (err) => {
-                console.error('Error downloading audio:', err);
+            } catch (error) {
+                console.error('Error saving audio to S3:', error);
                 res.status(500).json({
                     success: false,
-                    msg: 'Error downloading audio',
+                    msg: 'Error saving audio to S3',
                 });
+            }
+        });
+
+        audioStream.on('error', (error) => {
+            console.error('Error downloading audio:', error);
+            res.status(500).json({
+                success: false,
+                msg: 'Error downloading audio',
             });
+        });
     } catch (error) {
         console.error('Error fetching video data:', error.message);
         return res.status(500).json({
