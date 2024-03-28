@@ -2,7 +2,7 @@ const ytdl = require('ytdl-core');
 const usetube = require('usetube');
 const { spawn } = require('child_process');
 const ffmpeg = require('ffmpeg-static');
-const fs = require('@cyclic.sh/s3fs')(process.env.CYCLIC_BUCKET_NAME);
+const fs = require('@cyclic.sh/s3fs')(process.env.S3_BUCKET_NAME);
 
 exports.downloadAudio = async (req, res) => {
     try {
