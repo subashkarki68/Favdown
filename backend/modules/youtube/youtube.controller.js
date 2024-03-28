@@ -37,17 +37,23 @@ exports.downloadAudio = async (req, res) => {
 
         ytdl(videoId, { format: highestAudioFormat })
             .pipe(
-                spawn(ffmpeg, [
-                    '-i',
-                    'pipe:0', // Read from stdin
-                    '-codec:a',
-                    'libmp3lame',
-                    '-q:a',
-                    '0',
-                    '-f',
-                    'mp3', // Output format
-                    'pipe:1', // Write to stdout
-                ]).stdout
+                spawn(
+                    ffmpeg,
+                    [
+                        '-i',
+                        'pipe:0', // Read from stdin
+                        '-codec:a',
+                        'libmp3lame',
+                        '-q:a',
+                        '0',
+                        '-f',
+                        'mp3', // Output format
+                        'pipe:1', // Write to stdout
+                    ],
+                    {
+                        stdio: ['pipe', 'pipe', 'ignore'], // Ignore stderr
+                    }
+                ).stdout
             )
             .pipe(res);
     } catch (error) {
