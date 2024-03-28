@@ -1,7 +1,14 @@
+const AWS = require('aws-sdk');
 const { spawn } = require('child_process');
 const ffmpeg = require('ffmpeg-static');
 const ytdl = require('ytdl-core');
 const usetube = require('usetube');
+
+// Initialize AWS SDK with your credentials
+const s3 = new AWS.S3({
+    accessKeyId: 'YOUR_ACCESS_KEY_ID',
+    secretAccessKey: 'YOUR_SECRET_ACCESS_KEY',
+});
 
 exports.downloadAudio = async (req, res) => {
     try {
@@ -29,33 +36,44 @@ exports.downloadAudio = async (req, res) => {
 
         const highestAudioFormat = audioFormats[0];
 
+        // Download audio stream from YouTube
+        const audioStream = ytdl(videoId, { format: highestAudioFormat });
+
+        // Upload audio file to S3 bucket
+        const uploadParams = {
+            Bucket: 'YOUR_S3_BUCKET_NAME',
+            Key: `audio/${videoId}.mp3`,
+            Body: audioStream,
+        };
+        await s3.upload(uploadParams).promise();
+        console.log('Audio file uploaded to S3 successfully.');
+
+        // Stream audio file from S3 to user's response
+        const s3Params = {
+            Bucket: 'YOUR_S3_BUCKET_NAME',
+            Key: `audio/${videoId}.mp3`,
+        };
+        const s3Stream = s3.getObject(s3Params).createReadStream();
+
         res.setHeader(
             'Content-disposition',
             `attachment; filename="${videoInfo.videoDetails.title}.mp3"`
         );
         res.setHeader('Content-type', 'audio/mpeg');
 
-        ytdl(videoId, { format: highestAudioFormat })
-            .pipe(
-                spawn(
-                    ffmpeg,
-                    [
-                        '-i',
-                        'pipe:0', // Read from stdin
-                        '-codec:a',
-                        'libmp3lame',
-                        '-q:a',
-                        '0',
-                        '-f',
-                        'mp3', // Output format
-                        'pipe:1', // Write to stdout
-                    ],
-                    {
-                        stdio: ['pipe', 'pipe', 'ignore'], // Ignore stderr
-                    }
-                ).stdout
-            )
-            .pipe(res);
+        s3Stream.pipe(res);
+
+        // Delete the file from S3 after streaming to user
+        s3.deleteObject(
+            { Bucket: 'YOUR_S3_BUCKET_NAME', Key: `audio/${videoId}.mp3` },
+            (err, data) => {
+                if (err) {
+                    console.error('Error deleting file from S3:', err);
+                } else {
+                    console.log('File deleted from S3 successfully:', data);
+                }
+            }
+        );
     } catch (error) {
         console.error('Error fetching video data:', error.message);
         return res.status(500).json({
