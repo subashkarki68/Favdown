@@ -26,9 +26,6 @@ dependencies:
   express-session:
     specifier: ^1.18.0
     version: 1.18.0
-  ffmpeg-normalize:
-    specifier: ^1.8.0
-    version: 1.8.0
   ffmpeg-static:
     specifier: ^5.2.0
     version: 5.2.0
@@ -770,19 +767,6 @@ packages:
     resolution: {integrity: sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==}
     dev: false
 
-  /ffmpeg-normalize@1.8.0:
-    resolution: {integrity: sha512-t1Hf4Ix0iH7cPeNf//8k6XrCTUr1XN1dL1trxK5GnD5wyHRTXufQWQcO8bcT8VFiLltDJ0av7s/bauTWlLy1dA==}
-    engines: {node: '>=6.0.0'}
-    dependencies:
-      ffmpeg-static: 2.5.0
-      ffprobe-static: 3.1.0
-    dev: false
-
-  /ffmpeg-static@2.5.0:
-    resolution: {integrity: sha512-4HI5aUFq9As3vNOm/0p4Pj47D8AxUqg0qnzaOuXwFMQ6uYhaLXGneUX/8b3C6gbU4ljASI+Ne7WKHpYFnLtK3A==}
-    deprecated: ffmpeg-static@2 won't be updated with new ffmpeg binaries anymore. Use ffmpeg-static@latest.
-    dev: false
-
   /ffmpeg-static@5.2.0:
     resolution: {integrity: sha512-WrM7kLW+do9HLr+H6tk7LzQ7kPqbAgLjdzNE32+u3Ff11gXt9Kkkd2nusGFrlWMIe+XaA97t+I8JS7sZIrvRgA==}
     engines: {node: '>=16'}
@@ -794,10 +778,6 @@ packages:
       progress: 2.0.3
     transitivePeerDependencies:
       - supports-color
-    dev: false
-
-  /ffprobe-static@3.1.0:
-    resolution: {integrity: sha512-Dvpa9uhVMOYivhHKWLGDoa512J751qN1WZAIO+Xw4L/mrUSPxS4DApzSUDbCFE/LUq2+xYnznEahTd63AqBSpA==}
     dev: false
 
   /fill-range@7.0.1:
