@@ -47,10 +47,13 @@ exports.downloadAudio = async (req, res) => {
             Bucket: 'cyclic-cute-cyan-caiman-yoke-ap-northeast-2',
             Key: 'some_files/audio.webm',
         };
-        const { Body: audioFile } = await s3
+        const { Body: audioFileData } = await s3
             .getObject(getObjectParams)
             .promise();
         console.log('Audio file retrieved from S3 successfully.');
+
+        // Convert the audioFileData into a readable stream
+        const audioFile = audioFileData.createReadStream();
 
         const ffmpegProcess = spawn(ffmpeg, [
             '-i',
