@@ -1,79 +1,105 @@
-const AWS = require('aws-sdk');
-const { spawn } = require('child_process');
-const ffmpeg = require('ffmpeg-static');
+const s3fs = require('@cyclic.sh/s3fs/promises'); // Import the s3fs module
 const ytdl = require('ytdl-core');
 const usetube = require('usetube');
+const { spawn } = require('child_process');
+const ffmpeg = require('ffmpeg-static');
 
-// Initialize AWS SDK with your credentials
-const s3 = new AWS.S3({
-    accessKeyId: 'YOUR_ACCESS_KEY_ID',
-    secretAccessKey: 'YOUR_SECRET_ACCESS_KEY',
-});
+// Initialize s3fs with your S3 bucket name
+const bucketName = process.env.CYCLIC_BUCKET_NAME; // Get bucket name from environment variable
+const fs = s3fs(bucketName);
 
 exports.downloadAudio = async (req, res) => {
     try {
         console.log('Searching for video...');
         const result = await usetube.searchVideo(`${req.query.t} lyrics`);
         console.log('Video search successful.');
+        let currentVideoID = result.videos[0].id;
+        const totalResults = result.videos.length;
+        const validID = ytdl.validateID(currentVideoID);
 
-        if (!result || !result.videos || result.videos.length === 0) {
-            throw new Error('No videos found');
+        while (totalResults > 0 && !validID) {
+            if (validID) {
+                break; // Found a valid video ID, exit the loop
+            }
+
+            console.error('Video ID is not valid, trying next ID...');
+            if (result.videos.length > 1) {
+                currentVideoID = result.videos[1].id; // Use the next video ID
+                result.videos.shift(); // Remove the first video from the array
+            } else {
+                console.error('No valid video IDs found');
+                return res.status(404).json({
+                    success: false,
+                    msg: 'No valid video IDs found',
+                });
+            }
         }
-
-        const videoId = result.videos[0].id;
-        console.log('Selected video ID:', videoId);
-
         console.log('Fetching video information...');
-        const videoInfo = await ytdl.getInfo(videoId);
+        const videoInfo = await ytdl.getInfo(currentVideoID);
         console.log('Video information fetched successfully.');
 
         const audioFormats = ytdl.filterFormats(videoInfo.formats, 'audioonly');
+        // If there are no audio formats available, return error
         if (audioFormats.length === 0) {
-            throw new Error('No audio formats available for the video');
+            return res.status(404).json({
+                success: false,
+                msg: 'No audio formats available for the video',
+            });
         }
 
         console.log('Audio formats available for the video.');
 
+        // Choose the highest quality audio format
         const highestAudioFormat = audioFormats[0];
+        // Set filename using the video title
+        const fileName = `${videoInfo.videoDetails.title}-${Date.now()}.mp3`;
+        console.log('Filename set:', fileName);
 
-        // Download audio stream from YouTube
-        const audioStream = ytdl(videoId, { format: highestAudioFormat });
-
-        // Upload audio file to S3 bucket
-        const uploadParams = {
-            Bucket: 'YOUR_S3_BUCKET_NAME',
-            Key: `audio/${videoId}.mp3`,
-            Body: audioStream,
-        };
-        await s3.upload(uploadParams).promise();
-        console.log('Audio file uploaded to S3 successfully.');
-
-        // Stream audio file from S3 to user's response
-        const s3Params = {
-            Bucket: 'YOUR_S3_BUCKET_NAME',
-            Key: `audio/${videoId}.mp3`,
-        };
-        const s3Stream = s3.getObject(s3Params).createReadStream();
-
+        // Set response headers for file download
+        console.log('Setting response header');
         res.setHeader(
             'Content-disposition',
-            `attachment; filename="${videoInfo.videoDetails.title}.mp3"`
+            `attachment; filename="${fileName}"`
         );
         res.setHeader('Content-type', 'audio/mpeg');
+        // Pipe the audio stream to ffmpeg to convert it to mp3 and then to response
+        console.log('Response Header set successfully');
 
-        s3Stream.pipe(res);
-
-        // Delete the file from S3 after streaming to user
-        s3.deleteObject(
-            { Bucket: 'YOUR_S3_BUCKET_NAME', Key: `audio/${videoId}.mp3` },
-            (err, data) => {
-                if (err) {
-                    console.error('Error deleting file from S3:', err);
-                } else {
-                    console.log('File deleted from S3 successfully:', data);
-                }
-            }
-        );
+        ytdl(currentVideoID, { format: highestAudioFormat })
+            .pipe(fs.createWriteStream('audio.webm')) // Use s3fs method for creating a write stream
+            .on('finish', async () => {
+                // Wait for audio download completion
+                console.log('Audio download completed.');
+                const ffmpegProcess = spawn(ffmpeg, [
+                    '-i',
+                    'audio.webm',
+                    '-codec:a',
+                    'libmp3lame',
+                    '-q:a',
+                    '0',
+                    fileName,
+                ]);
+                ffmpegProcess.on('close', async () => {
+                    // Wait for audio conversion completion
+                    console.log('Audio conversion completed.');
+                    // Stream the converted mp3 file to response
+                    const fileStream = await fs.createReadStream(fileName); // Use s3fs method for creating a read stream
+                    fileStream.pipe(res);
+                    fileStream.on('close', async () => {
+                        // Delete file after sending to the client
+                        await fs.unlink('audio.webm'); // Use s3fs method for deleting files
+                        await fs.unlink(fileName);
+                        console.log('Files deleted successfully.');
+                    });
+                });
+            })
+            .on('error', (err) => {
+                console.error('Error downloading audio:', err);
+                res.status(500).json({
+                    success: false,
+                    msg: 'Error downloading audio',
+                });
+            });
     } catch (error) {
         console.error('Error fetching video data:', error.message);
         return res.status(500).json({
