@@ -2,9 +2,6 @@ const { spawn } = require('child_process');
 const ffmpeg = require('ffmpeg-static');
 const ytdl = require('ytdl-core');
 const usetube = require('usetube');
-const AWS = require('aws-sdk');
-
-const s3 = new AWS.S3();
 
 exports.downloadAudio = async (req, res) => {
     try {
@@ -31,63 +28,28 @@ exports.downloadAudio = async (req, res) => {
         console.log('Audio formats available for the video.');
 
         const highestAudioFormat = audioFormats[0];
-        const audioStream = ytdl(videoId, { format: highestAudioFormat });
-
-        console.log('Storing audio file to S3...');
-        const uploadParams = {
-            Bucket: 'cyclic-cute-cyan-caiman-yoke-ap-northeast-2',
-            Key: 'some_files/audio.webm',
-            Body: audioStream,
-        };
-        await s3.upload(uploadParams).promise();
-        console.log('Audio file stored to S3 successfully.');
-
-        console.log('Retrieving audio file from S3...');
-        const getObjectParams = {
-            Bucket: 'cyclic-cute-cyan-caiman-yoke-ap-northeast-2',
-            Key: 'some_files/audio.webm',
-        };
-        const { Body: audioFileData } = await s3
-            .getObject(getObjectParams)
-            .promise();
-        console.log('Audio file retrieved from S3 successfully.');
-
-        // Convert the audioFileData into a readable stream
-        const audioFile = audioFileData.createReadStream();
-
-        const ffmpegProcess = spawn(ffmpeg, [
-            '-i',
-            'pipe:0', // Read from stdin
-            '-codec:a',
-            'libmp3lame',
-            '-q:a',
-            '0',
-            '-f',
-            'mp3', // Output format
-            'pipe:1', // Write to stdout
-        ]);
-
-        // Extract video title for filename suggestion
-        const fileName =
-            videoInfo.videoDetails.title.replace(/[^a-zA-Z0-9]/g, '_') + '.mp3';
-        const encodedFileName = encodeURIComponent(fileName);
 
         res.setHeader(
             'Content-disposition',
-            `attachment; filename="${encodedFileName}"`
+            `attachment; filename="${videoInfo.videoDetails.title}.mp3"`
         );
         res.setHeader('Content-type', 'audio/mpeg');
 
-        audioFile.pipe(ffmpegProcess.stdin);
-        ffmpegProcess.stdout.pipe(res);
-
-        ffmpegProcess.stderr.on('data', (data) => {
-            console.error(`ffmpeg error: ${data}`);
-        });
-
-        ffmpegProcess.on('exit', (code, signal) => {
-            console.log(`ffmpeg exited with code ${code} and signal ${signal}`);
-        });
+        ytdl(videoId, { format: highestAudioFormat })
+            .pipe(
+                spawn(ffmpeg, [
+                    '-i',
+                    'pipe:0', // Read from stdin
+                    '-codec:a',
+                    'libmp3lame',
+                    '-q:a',
+                    '0',
+                    '-f',
+                    'mp3', // Output format
+                    'pipe:1', // Write to stdout
+                ]).stdout
+            )
+            .pipe(res);
     } catch (error) {
         console.error('Error fetching video data:', error.message);
         return res.status(500).json({
