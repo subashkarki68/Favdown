@@ -64,9 +64,13 @@ exports.downloadAudio = async (req, res) => {
             'pipe:1', // Write to stdout
         ]);
 
+        // Extract video title for filename suggestion
+        const fileName =
+            videoInfo.videoDetails.title.replace(/[^a-zA-Z0-9]/g, '_') + '.mp3';
+
         res.setHeader(
             'Content-disposition',
-            `attachment; filename="${videoInfo.videoDetails.title}.mp3"`
+            `attachment; filename="${fileName}"`
         );
         res.setHeader('Content-type', 'audio/mpeg');
 
