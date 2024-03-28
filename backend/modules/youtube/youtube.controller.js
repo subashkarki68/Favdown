@@ -1,8 +1,15 @@
 const fs = require('fs');
+const { promisify } = require('util');
 const ytdl = require('ytdl-core');
 const usetube = require('usetube');
 const { spawn } = require('child_process');
 const ffmpeg = require('ffmpeg-static');
+const AWS = require('aws-sdk');
+
+// Promisify S3 methods for better async/await integration
+const s3 = new AWS.S3();
+const putObjectAsync = promisify(s3.putObject).bind(s3);
+const getObjectAsync = promisify(s3.getObject).bind(s3);
 
 exports.downloadAudio = async (req, res) => {
     try {
@@ -51,68 +58,66 @@ exports.downloadAudio = async (req, res) => {
         const fileName = `${videoInfo.videoDetails.title}-${Date.now()}.mp3`;
         console.log('Filename set:', fileName);
 
-        // Set response headers for file download
-        console.log('Setting response header');
-        res.setHeader(
-            'Content-disposition',
-            `attachment; filename="${fileName}"`
-        );
-        res.setHeader('Content-type', 'audio/mpeg');
-        // Pipe the audio stream to ffmpeg to convert it to mp3 and then to response
-        console.log('Response Header set successfully');
+        console.log('Storing audio file to S3...');
+        // Store the audio file to S3
+        await putObjectAsync({
+            Body: await ytdl(currentVideoID, {
+                format: highestAudioFormat,
+            }).pipe(fs.createWriteStream('audio.webm')),
+            Bucket: 'cyclic-cute-cyan-caiman-yoke-ap-northeast-2',
+            Key: 'audio.webm',
+        });
 
-        ytdl(currentVideoID, { format: highestAudioFormat })
-            .pipe(fs.createWriteStream('audio.webm'))
-            .on('finish', () => {
-                console.log('Audio download completed.');
-                const ffmpegProcess = spawn(ffmpeg, [
-                    '-i',
-                    'audio.webm',
-                    '-codec:a',
-                    'libmp3lame',
-                    '-q:a',
-                    '0',
-                    fileName,
-                ]);
-                ffmpegProcess.on('close', () => {
-                    console.log('Audio conversion completed.');
-                    // Normalize the audio using ffmpeg-normalize
-                    // Stream the converted mp3 file to response
-                    // fs.createReadStream(fileName).pipe(res);
-                    const fileStream = fs.createReadStream(fileName);
-                    fileStream.pipe(res);
-                    fileStream.on('close', () => {
-                        //Delete file after sending to the client
-                        fs.unlink('audio.webm', (err) => {
-                            if (err) {
-                                console.error('Error Deleting audio.webm');
-                            } else {
-                                console.log('audio.webm deleted Successfully');
-                            }
-                        });
-                        fs.unlink(fileName, (err) => {
-                            if (err) {
-                                console.error(
-                                    `Error deleting file: ${fileName} from server:`,
-                                    err
-                                );
-                            } else {
-                                console.log(
-                                    'File deleted successfully.',
-                                    fileName
-                                );
-                            }
-                        });
-                    });
+        console.log('Audio file stored to S3 successfully.');
+
+        // Retrieve the stored audio file from S3
+        console.log('Retrieving audio file from S3...');
+        const my_file = await getObjectAsync({
+            Bucket: 'cyclic-cute-cyan-caiman-yoke-ap-northeast-2',
+            Key: 'audio.webm',
+        });
+
+        console.log('Audio file retrieved from S3 successfully.');
+
+        console.log('Converting audio file to mp3...');
+        // Convert the audio file to mp3
+        const ffmpegProcess = spawn(ffmpeg, [
+            '-i',
+            my_file.Body,
+            '-codec:a',
+            'libmp3lame',
+            '-q:a',
+            '0',
+            fileName,
+        ]);
+
+        ffmpegProcess.on('close', () => {
+            console.log('Audio conversion completed.');
+
+            // Stream the converted mp3 file to response
+            const fileStream = fs.createReadStream(fileName);
+            fileStream.pipe(res);
+            fileStream.on('close', () => {
+                //Delete file after sending to the client
+                fs.unlink('audio.webm', (err) => {
+                    if (err) {
+                        console.error('Error Deleting audio.webm');
+                    } else {
+                        console.log('audio.webm deleted Successfully');
+                    }
                 });
-            })
-            .on('error', (err) => {
-                console.error('Error downloading audio:', err);
-                res.status(500).json({
-                    success: false,
-                    msg: 'Error downloading audio',
+                fs.unlink(fileName, (err) => {
+                    if (err) {
+                        console.error(
+                            `Error deleting file: ${fileName} from server:`,
+                            err
+                        );
+                    } else {
+                        console.log('File deleted successfully.', fileName);
+                    }
                 });
             });
+        });
     } catch (error) {
         console.error('Error fetching video data:', error.message);
         return res.status(500).json({
